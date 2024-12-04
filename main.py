@@ -202,7 +202,7 @@ if __name__ == "__main__":
     # Provider argument
     parser.add_argument(
         "--provider",
-        choices=["openai", "ollama"],
+        choices=["openai", "ollama", "groq"],
         default="openai",
         help="LLM provider to use. Defaults to 'openai'.",
     )
@@ -211,7 +211,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--model",
         help=(
-            "Model to use. Defaults to 'gpt-4o-mini' for 'openai' and 'llama3.2' for 'ollama'."
+            "Model to use. Defaults to 'gpt-4o-mini' for 'openai', 'qwen2.5-coder' for 'ollama', "
+            "and 'llama3-groq-70b-8192-tool-use-preview' for 'groq'."
         ),
     )
 
@@ -219,7 +220,12 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Determine the model based on the provider and user input
-    model = args.model or ("gpt-4o-mini" if args.provider == "openai" else "qwen2.5-coder")
+    default_models = {
+        "openai": "gpt-4o-mini",
+        "ollama": "qwen2.5-coder",
+        "groq": "llama3-groq-70b-8192-tool-use-preview"
+    }
+    model = args.model or default_models[args.provider]
 
     # Set environment variables for provider and model
     os.environ["LLM_PROVIDER"] = args.provider

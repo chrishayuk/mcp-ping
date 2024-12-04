@@ -116,13 +116,29 @@ async def fetch_tools(read_stream, write_stream):
 
 def convert_to_openai_tools(tools):
     """Convert tools into OpenAI-compatible function definitions."""
-    return [
-        {
+    openai_tools = []
+    for tool in tools:
+        # Ensure tool has required fields
+        if "name" not in tool or "inputSchema" not in tool:
+            logging.debug(f"Skipping invalid tool: {tool}")
+            continue
+
+        # Convert tool to OpenAI format
+        openai_tool = {
             "type": "function",
             "function": {
                 "name": tool["name"],
-                "parameters": tool.get("inputSchema", {}),
-            },
+                "description": tool.get("description", ""),
+                "parameters": tool.get("inputSchema", {})
+            }
         }
-        for tool in tools
-    ]
+
+        # Ensure parameters has type and properties
+        if "type" not in openai_tool["function"]["parameters"]:
+            openai_tool["function"]["parameters"]["type"] = "object"
+        if "properties" not in openai_tool["function"]["parameters"]:
+            openai_tool["function"]["parameters"]["properties"] = {}
+
+        openai_tools.append(openai_tool)
+
+    return openai_tools
