@@ -2,6 +2,7 @@ import os
 import uuid
 import ollama
 from openai import OpenAI
+from groq import Groq
 from dotenv import load_dotenv
 import logging
 from typing import Dict, Any, List
@@ -14,14 +15,20 @@ class LLMClient:
         # set the provider, model and api key
         self.provider = provider
         self.model = model
-        self.api_key = api_key or os.getenv("OPENAI_API_KEY")
+        self.api_key = api_key
 
         # ensure we have the api key for openai if set
-        if provider == "openai" and not self.api_key:
-            raise ValueError("The OPENAI_API_KEY environment variable is not set.")
-        
+        if provider == "openai":
+            self.api_key = api_key or os.getenv("OPENAI_API_KEY")
+            if not self.api_key:
+                raise ValueError("The OPENAI_API_KEY environment variable is not set.")
+        # ensure we have the api key for groq if set
+        elif provider == "groq":
+            self.api_key = api_key or os.getenv("GROQ_API_KEY")
+            if not self.api_key:
+                raise ValueError("The GROQ_API_KEY environment variable is not set.")
         # check ollama is good
-        if provider == "ollama" and not hasattr(ollama, "chat"):
+        elif provider == "ollama" and not hasattr(ollama, "chat"):
             raise ValueError("Ollama is not properly configured in this environment.")
 
     def create_completion(self, messages: List[Dict], tools: List = None) -> Dict[str, Any]:
@@ -29,6 +36,9 @@ class LLMClient:
         if self.provider == "openai":
             # perform an openai completion
             return self._openai_completion(messages, tools)
+        elif self.provider == "groq":
+            # perform a groq completion
+            return self._groq_completion(messages, tools)
         elif self.provider == "ollama":
             # perform an ollama completion
             return self._ollama_completion(messages, tools)
@@ -103,3 +113,34 @@ class LLMClient:
             # error
             logging.error(f"Ollama API Error: {str(e)}")
             raise ValueError(f"Ollama API Error: {str(e)}")
+
+    def _groq_completion(self, messages: List[Dict], tools: List) -> Dict[str, Any]:
+        """Handle Groq chat completions."""
+        # get the groq client
+        client = Groq(api_key=self.api_key)
+
+        try:
+            # make a request, passing in tools
+            kwargs = {
+                "model": self.model,
+                "messages": messages,
+                "max_tokens": 4096
+            }
+
+            # Only add tools if they are provided
+            if tools:
+                kwargs["tools"] = tools
+                kwargs["tool_choice"] = "auto"
+
+            # make the request
+            response = client.chat.completions.create(**kwargs)
+
+            # return the response
+            return {
+                "response": response.choices[0].message.content,
+                "tool_calls": getattr(response.choices[0].message, "tool_calls", []),
+            }
+        except Exception as e:
+            # error
+            logging.error(f"Groq API Error: {str(e)}")
+            raise ValueError(f"Groq API Error: {str(e)}")
