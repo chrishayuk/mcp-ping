@@ -9,7 +9,7 @@ import anyio
 from anyio.streams.text import TextReceiveStream
 
 from mcpcli.environment import get_default_environment
-from mcpcli.messages.json_rpc_message import JSONRPCMessage
+from mcpcli.messages.message_types.json_rpc_message import JSONRPCMessage
 from mcpcli.transport.stdio.stdio_server_parameters import StdioServerParameters
 
 
@@ -30,7 +30,7 @@ async def stdio_client(server: StdioServerParameters):
     # start the subprocess
     process = await anyio.open_process(
         [server.command, *server.args],
-        env=server.env or get_default_environment(),
+        env={**get_default_environment(), **(server.env or {})},
         stderr=sys.stderr,
     )
 

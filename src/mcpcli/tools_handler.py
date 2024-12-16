@@ -3,8 +3,8 @@ import logging
 import os
 import re
 from typing import Any, Dict, Optional
-
-from mcpcli.messages.tools import send_call_tool, send_tools_list
+from mcpcli.messages.send_call_tool import send_call_tool
+from mcpcli.messages.send_tools_list import send_tools_list
 
 
 def parse_tool_response(response: str) -> Optional[Dict[str, Any]]:
