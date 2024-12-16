@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 import re
 from typing import Any, Dict, Optional
 from mcpcli.messages.send_call_tool import send_call_tool
@@ -32,6 +33,7 @@ async def handle_tool_call(tool_call, conversation_history, server_streams):
     """
     tool_name = "unknown_tool"
     raw_arguments = {}
+    tool_call_id = None
 
     try:
         # Handle object-style tool calls from both OpenAI and Ollama
@@ -79,37 +81,50 @@ async def handle_tool_call(tool_call, conversation_history, server_streams):
         # Format the tool response
         formatted_response = format_tool_response(tool_response.get("content", []))
         logging.debug(f"Tool '{tool_name}' Response: {formatted_response}")
-
+        
         # Update the conversation history with the tool call
         # Add the tool call itself (for OpenAI tracking)
-        conversation_history.append(
-            {
+        
+        if os.environ.get("LLM_PROVIDER") == "amazon":
+            # Format response for Bedrock
+            tool_call_id = tool_call.get("id", "unknown tool id")
+            tool_result = {
+                "toolUseId": tool_call_id,
+                #"content": [{"json": tool_response.get("content", [])}]
+                "content": [{"json": formatted_response[0].get("json", [])}]
+            }
+            
+
+            conversation_history.append({
+                "role": "user",
+                "content": [{
+                    "toolResult": tool_result
+                }]
+            })
+        else:
+            # Standard OpenAI format
+            conversation_history.append({
                 "role": "assistant",
                 "content": None,
-                "tool_calls": [
-                    {
-                        "id": f"call_{tool_name}",
-                        "type": "function",
-                        "function": {
-                            "name": tool_name,
-                            "arguments": json.dumps(tool_args)
-                            if isinstance(tool_args, dict)
-                            else tool_args,
-                        },
-                    }
-                ],
-            }
-        )
-
-        # Add the tool response to conversation history
-        conversation_history.append(
-            {
+                "tool_calls": [{
+                    "id": f"call_{tool_name}",
+                    "type": "function",
+                    "function": {
+                        "name": tool_name,
+                        "arguments": json.dumps(tool_args) if isinstance(tool_args, dict) else tool_args,
+                    },
+                }]
+            })
+            
+            conversation_history.append({
                 "role": "tool",
                 "name": tool_name,
                 "content": formatted_response,
                 "tool_call_id": f"call_{tool_name}",
-            }
-        )
+            })
+        
+
+        logging.debug("conversation_history",conversation_history)
 
     except json.JSONDecodeError:
         logging.debug(
@@ -121,13 +136,30 @@ async def handle_tool_call(tool_call, conversation_history, server_streams):
 
 def format_tool_response(response_content):
     """Format the response content from a tool."""
-    if isinstance(response_content, list):
-        return "\n".join(
-            item.get("text", "No content")
-            for item in response_content
-            if item.get("type") == "text"
-        )
-    return str(response_content)
+    if os.environ.get("LLM_PROVIDER") == "amazon":
+        if isinstance(response_content, list):
+            for item in response_content:
+                if item.get("type") == "text" and isinstance(item.get("text"), str):
+                    try:
+                        # Replace single quotes with double quotes and 'None' with 'null'
+                        text_content = item["text"].replace("'", '"').replace("None", "null")
+                        parsed_json = json.loads(text_content)
+                        # Convert to format expected by Bedrock
+                        return [{"type": "json", "json": parsed_json}]
+                    except json.JSONDecodeError as e:
+                        logging.error(f"JSON parse error: {e}")
+                        return response_content
+        
+        return response_content
+    else:
+        # Original formatting for other providers
+        if isinstance(response_content, list):
+            return "\n".join(
+                item.get("text", "No content")
+                for item in response_content
+                if item.get("type") == "text"
+            )
+        return str(response_content)
 
 
 async def fetch_tools(read_stream, write_stream):

@@ -1,5 +1,6 @@
 # chat_handler.py
 import json
+from datetime import datetime
 
 from rich import print
 from rich.markdown import Markdown
@@ -66,6 +67,74 @@ async def process_conversation(
         response_content = completion.get("response", "No response")
         tool_calls = completion.get("tool_calls", [])
 
+        # Save assistant response with additional metadata if provider is amazon
+        if client.provider == "amazon":
+            content = []
+            if response_content:
+                content.append({"text": response_content})
+            
+            if tool_calls:
+                for tool_call in tool_calls:
+                    if hasattr(tool_call, "function"):
+                        tool_use = {
+                            "toolUse": {
+                                "toolUseId": tool_call.id if hasattr(tool_call, 'id') else None,
+                                "name": tool_call.function.name.replace("-", "_"),
+                                "input": json.loads(tool_call.function.arguments)
+                            }
+                        }
+                        content.append(tool_use)
+                    elif isinstance(tool_call, dict) and "function" in tool_call:
+                        tool_use = {
+                            "toolUse": {
+                                "toolUseId": tool_call.get("id"),
+                                "name": tool_call["function"]["name"].replace("-", "_"),
+                                "input": json.loads(tool_call["function"]["arguments"]) if isinstance(tool_call["function"]["arguments"], str) else tool_call["function"]["arguments"]
+                            }
+                        }
+                        content.append(tool_use)
+
+            assistant_message = {
+                "role": "assistant",
+                "content": content,
+                "metadata": {
+                    "timestamp": datetime.now().isoformat(),
+                    "conversation_id": completion.get("conversation_id", ""),
+                }
+            }
+            conversation_history.append(assistant_message)
+        else:
+            content = []
+            if response_content:
+                content.append({"text": response_content})
+            
+            if tool_calls:
+                for tool_call in tool_calls:
+                    if hasattr(tool_call, "function"):
+                        tool_use = {
+                            "toolUse": {
+                                "toolUseId": f"tooluse_{datetime.now().strftime('%Y%m%d%H%M%S')}",
+                                "name": tool_call.function.name.replace("-", "_"),
+                                "input": json.loads(tool_call.function.arguments)
+                            }
+                        }
+                        content.append(tool_use)
+                    elif isinstance(tool_call, dict) and "function" in tool_call:
+                        tool_use = {
+                            "toolUse": {
+                                "toolUseId": f"tooluse_{datetime.now().strftime('%Y%m%d%H%M%S')}",
+                                "name": tool_call["function"]["name"].replace("-", "_"),
+                                "input": json.loads(tool_call["function"]["arguments"]) if isinstance(tool_call["function"]["arguments"], str) else tool_call["function"]["arguments"]
+                            }
+                        }
+                        content.append(tool_use)
+
+            assistant_message = {
+                "role": "assistant",
+                "content": content
+            }
+            #conversation_history.append(assistant_message)
+
         if tool_calls:
             for tool_call in tool_calls:
                 # Extract tool_name and raw_arguments as before
@@ -85,10 +154,8 @@ async def process_conversation(
                     try:
                         raw_arguments = json.loads(raw_arguments)
                     except json.JSONDecodeError:
-                        # If it's not valid JSON, just display as is
                         pass
 
-                # Now raw_arguments should be a dict or something we can pretty-print as JSON
                 tool_args_str = json.dumps(raw_arguments, indent=2)
 
                 tool_md = f"**Tool Call:** {tool_name}\n\n```json\n{tool_args_str}\n```"
@@ -106,7 +173,6 @@ async def process_conversation(
         print(
             Panel(Markdown(assistant_panel_text), style="bold blue", title="Assistant")
         )
-        conversation_history.append({"role": "assistant", "content": response_content})
         break
 
 
