@@ -1,8 +1,13 @@
 {
   "mcpServers": {
     "sqlite": {
+      "transport": "stdio",
       "command": "uvx",
       "args": ["mcp-server-sqlite", "--db-path", "test.db"]
+    },
+    "fetch": {
+      "transport": "sse",
+      "endpoint": "http://localhost:3001/sse"
     }
   }
 }

@@ -24,7 +24,10 @@ from mcpcli.messages.send_resources import send_resources_list
 from mcpcli.messages.send_initialize_message import send_initialize
 from mcpcli.messages.send_call_tool import send_call_tool
 from mcpcli.messages.send_tools_list import send_tools_list
+from mcpcli.transport.sse.sse_client import sse_client
+from mcpcli.transport.sse.sse_server_parameters import SSEServerParameters
 from mcpcli.transport.stdio.stdio_client import stdio_client
+from mcpcli.transport.stdio.stdio_server_parameters import StdioServerParameters
 
 # Default path for the configuration file
 DEFAULT_CONFIG_FILE = "server_config.json"
@@ -286,19 +289,29 @@ async def run(config_path: str, server_names: List[str], command: str = None) ->
     # Load server configurations and establish connections for all servers
     server_streams = []
     context_managers = []
+    client = None
     for server_name in server_names:
         server_params = await load_config(config_path, server_name)
 
-        # Establish stdio communication for each server
-        cm = stdio_client(server_params)
-        (read_stream, write_stream) = await cm.__aenter__()
-        context_managers.append(cm)
-        server_streams.append((read_stream, write_stream))
+        # Establish stdio or sse communication for each server
+        if isinstance(server_params, StdioServerParameters):
+            cm = stdio_client(server_params)
+            (read_stream, write_stream) = await cm.__aenter__()
+            context_managers.append(cm)
+            server_streams.append((read_stream, write_stream))
 
-        init_result = await send_initialize(read_stream, write_stream)
-        if not init_result:
-            print(f"[red]Server initialization failed for {server_name}[/red]")
-            return
+            init_result = await send_initialize(read_stream, write_stream)
+            if not init_result:
+                print(f"[red]Server initialization failed for {server_name}[/red]")
+                return
+        elif isinstance(server_params, SSEServerParameters):
+            client = sse_client(server_params.endpoint)
+            (read_stream, write_stream) = await client.__aenter__()
+            context_managers.append(client)
+            server_streams.append((read_stream, write_stream))
+
+        else:
+            raise ValueError("Server transport not supported")
 
     try:
         if command:
