@@ -5,14 +5,15 @@ This repository contains a protocol-level CLI designed to interact with a Model 
 - Protocol-level communication with the MCP Server.
 - Dynamic tool and resource exploration.
 - Support for multiple providers and models:
-  - Providers: OpenAI, Ollama.
-  - Default models: `gpt-4o-mini` for OpenAI, `qwen2.5-coder` for Ollama.
+  - Providers: OpenAI, Ollama, Amazon Bedrock
+  - Default models: `gpt-4o-mini` for OpenAI, `qwen2.5-coder` for Ollama, `Claude-3.5-sonnet`for Amazon Bedrock.
 
 ## Prerequisites
 - Python 3.8 or higher.
 - Required dependencies (see [Installation](#installation))
 - If using ollama you should have ollama installed and running.
 - If using openai you should have an api key set in your environment variables (OPENAI_API_KEY=yourkey)
+- if using Amazon Bedrock you should have an access key and secret access key.
 
 ## Installation
 1. Clone the repository:
@@ -43,11 +44,17 @@ uv run mcp-cli --server sqlite
 
 ### Command-line Arguments
 - `--server`: Specifies the server configuration to use. Required.
+
 - `--config-file`: (Optional) Path to the JSON configuration file. Defaults to `server_config.json`.
+
 - `--provider`: (Optional) Specifies the provider to use (`openai` or `ollama`). Defaults to `openai`.
+
 - `--model`: (Optional) Specifies the model to use. Defaults depend on the provider:
   - `gpt-4o-mini` for OpenAI.
   - `llama3.2` for Ollama.
+  - `claude-3.5-sonnet` ,`claude-3.5-haiku`, `nova-lite`,`nova-pro` for Amazone Bedrock
+
+- `--aws-region`: Specifies the AWS Region configuration to use. Default to us-east-1.
 
 ### Examples
 Run the client with the default OpenAI provider and model:
@@ -62,7 +69,14 @@ Run the client with a specific configuration and Ollama provider:
 uv run mcp-cli --server sqlite --provider ollama --model llama3.2
 ```
 
+Run the client with Amazone Bedrock provider :
+
+```bash
+uv run mcp-cli --server sqlite --provider amazon --aws-region us-west-2
+```
+
 ## Interactive Mode
+
 The client supports interactive mode, allowing you to execute commands dynamically. Type `help` for a list of available commands or `quit` to exit the program.
 
 ## Supported Commands
